@@ -1,0 +1,36 @@
+{
+  "name": "bots",
+  "version": "1.0.0",
+  "description": "",
+  "main": "cplbot.js",
+  "dependencies": {
+    "chokidar": "^2.1.8",
+    "cron": "^1.7.2",
+    "discord.js": "^11.5.1",
+    "fast-levenshtein": "^2.0.6",
+    "flatted": "^2.0.1",
+    "glicko2": "^0.8.4",
+    "log-timestamp": "^0.3.0",
+    "mongodb": "^3.5.5",
+    "nodemon": "^1.19.4",
+    "pstree.remy": "^1.1.7",
+    "steamapi": "^2.0.7",
+    "upath": "^1.2.0",
+    "uws": "^100.0.1",
+    "ws": "^7.2.3"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/clanier9/bots.git"
+  },
+  "author": "codenaugh",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/clanier9/bots/issues"
+  },
+  "homepage": "https://github.com/clanier9/bots#readme"
+}
