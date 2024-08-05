@@ -30,7 +30,7 @@ const commands = {
   comp: [7],
   smurf: [30],
   oversub: [3],
-}
+};
 
 // Fetch target member and ID
 const fetchTargetAndId = async (message, targetString) => {
@@ -274,7 +274,11 @@ addCommand('lookup', '`Usage: .lookup <member>`', lookupCommandHandler);
 Object.entries(commands).forEach(([command, duration]) => {
   addCommand(command, `\`Usage: .${command} <member>\``, async (message, [targetString]) => {
     const targetData = await fetchTargetAndId(message, targetString);
-    const player = await mongo.applyPunishment(targetData.id, command, duration);
+    if (!targetData) return message.channel.send('User not found. Please mention a valid member.');
+    
+    const player = await mongo.getUserData(targetData.id);
+    if (!player) return message.channel.send("User data not found.");
+
     await handleInfraction(message, command, targetData, player);
   }, `Error handling .${command}`);
 });
