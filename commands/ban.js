@@ -18,6 +18,20 @@ process.on("uncaughtException", (err) => {
   console.error(err);
 });
 
+// Infraction commands and their durations
+const commands = {
+  quit: [1, 3, 7, 14, 30, 180],
+  minor: [0, 1, 2, 3, 5, 7],
+  moderate: [0, 1, 4, 7, 14, 30, 180],
+  major: [7, 14, 30, 180],
+  extreme: [30, 180],
+  lagger: [0, 0, 0],
+  rhost: [0, 0, 0],
+  comp: [7],
+  smurf: [30],
+  oversub: [3],
+}
+
 // Fetch target member and ID
 const fetchTargetAndId = async (message, targetString) => {
   const initialTarget = message.mentions.members.first();
@@ -191,10 +205,8 @@ const handleInfraction = async (message, command, targetData, player) => {
         '\n**RESULT:** 7 day suspension.',
       ];
       infractionMessage = buildResponseMessage(player, target, tiers);
-      if (player.tier < 7) {
-        await mongo.compSuspension(id);
-        await target.roles.add(suspendedId);
-      }
+      await mongo.suspensionDue(id, 7); 
+      await target.roles.add(suspendedId);
       break;
 
     case 'smurf':
@@ -202,10 +214,8 @@ const handleInfraction = async (message, command, targetData, player) => {
         '\n**RESULT:** 30 day suspension.',
       ];
       infractionMessage = buildResponseMessage(player, target, tiers);
-      if (player.tier < 7) {
-        await mongo.smurfSuspension(id);
-        await target.roles.add(suspendedId);
-      }
+      await mongo.suspensionDue(id, 30);
+      await target.roles.add(suspendedId);
       break;
 
     case 'oversub':
@@ -213,10 +223,8 @@ const handleInfraction = async (message, command, targetData, player) => {
         '\n**RESULT:** Each sub after the 3rd in a month is a 3 day suspension.',
       ];
       infractionMessage = buildResponseMessage(player, target, tiers);
-      if (player.tier < 7) {
-        await mongo.subSuspension(id);
-        await target.roles.add(suspendedId);
-      }
+      await mongo.suspensionDue(id, 3);
+      await target.roles.add(suspendedId);
       break;
 
     default:
@@ -236,7 +244,7 @@ const lookupCommandHandler = async (message, args) => {
       return message.channel.send('User not found. Please mention a valid member.');
     }
 
-    const userData = await mongo.getUserData(target.id);
+    const userData = await mongo.getUserData(targetData.id);
 
     if (!userData) {
       return message.channel.send("No data found for this user.");
@@ -248,13 +256,9 @@ const lookupCommandHandler = async (message, args) => {
       const hours = decay.hours > 0 ? `${decay.hours} hours` : '';
       return days && hours ? `${days}, ${hours}` : days || hours || '0 hours';
     };
-
-    tiersMessage.push(`Quit: Tier ${userData.quit.tier} (Decay in ${formatDecayTime(userData.quit.decays)})`);
-    tiersMessage.push(`Minor: Tier ${userData.minor.tier} (Decay in ${formatDecayTime(userData.minor.decays)})`);
-    tiersMessage.push(`Moderate: Tier ${userData.moderate.tier} (Decay in ${formatDecayTime(userData.moderate.decays)})`);
-    tiersMessage.push(`Major: Tier ${userData.major.tier} (Decay in ${formatDecayTime(userData.major.decays)})`);
-    tiersMessage.push(`Extreme: Tier ${userData.extreme.tier} (Decay in ${formatDecayTime(userData.extreme.decays)})`);
-    
+    Object.keys(userData).forEach((key) =>
+      tiersMessage.push(`${key}: Tier ${userData[key].tier} (Decay in ${formatDecayTime(userData[key].decays)})`)
+    );
 
     const messageContent = `Current punishment tiers for ${targetData.target.displayName}:\n${tiersMessage.join('\n')}`;
     message.channel.send(messageContent);
@@ -264,16 +268,13 @@ const lookupCommandHandler = async (message, args) => {
   }
 };
 
-// Command handlers for various infraction commands
+// Register command handlers for various infraction commands
 addCommand('lookup', '`Usage: .lookup <member>`', lookupCommandHandler);
 
-const commands = [
-  'quit', 'minor', 'moderate', 'major', 'extreme', 'comp', 'smurf', 'oversub', 'lagger', 'rhost'
-];
-commands.forEach((command) => {
+Object.entries(commands).forEach(([command, duration]) => {
   addCommand(command, `\`Usage: .${command} <member>\``, async (message, [targetString]) => {
-    const target = await fetchTargetAndId(message, targetString);
-    const player = await mongo[command](target.id);
-    await handleInfraction(message, command, target, player);
+    const targetData = await fetchTargetAndId(message, targetString);
+    const player = await mongo.applyPunishment(targetData.id, command, duration);
+    await handleInfraction(message, command, targetData, player);
   }, `Error handling .${command}`);
 });

@@ -1,6 +1,5 @@
-import { MongoClient } from 'mongodb'
-
-import util from './util'
+import { MongoClient } from 'mongodb';
+import util from './util';
 
 process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);
@@ -11,11 +10,10 @@ let _cli, _susp, _bandue, _suspdue, _unsuspdue;
 const connectToMongoDB = async (bot) => {
   const url = `mongodb://${bot}:${util.getToken('mongo')}@localhost:27017/`;
   try {
-    const client = await MongoClient.connect(url, {
-      useNewUrlParser: true,
+    const client = new MongoClient(url, {
       poolSize: 10,
-      useUnifiedTopology: true,
     });
+    await client.connect();
     _cli = client;
     _susp = _cli.db('players').collection('suspensions');
     _bandue = _cli.db('players').collection('bans_due');
@@ -50,7 +48,11 @@ const updatePlayer = async (player) => {
           "major.tier": player.major.tier,
           "major.decays": player.major.decays,
           "extreme.tier": player.extreme.tier,
-          "extreme.decays": player.extreme.decays
+          "extreme.decays": player.extreme.decays,
+          "rhost.tier": player.rhost.tier,
+          "rhost.decays": player.rhost.decays,
+          "lagger.tier": player.lagger.tier,
+          "lagger.decays": player.lagger.decays,
         }
       }
     );
@@ -62,7 +64,7 @@ const updatePlayer = async (player) => {
 const handlePunishmentDecay = async (player) => {
   let update = false;
 
-  const punishments = ['quit', 'minor', 'moderate', 'major', 'extreme'];
+  const punishments = ['quit', 'minor', 'moderate', 'major', 'extreme', 'rhost', 'lagger', 'comp', 'smurf', 'oversub'];
   punishments.forEach((type) => {
     if (player[type] && player[type].tier && player[type].decays) {
       if (new Date() > new Date(player[type].decays) && player[type].tier > 0) {
@@ -107,7 +109,7 @@ const applyPunishment = async (memberId, type, duration) => {
     let ends = member && member.ends && member.ends > new Date() ? new Date(member.ends) : new Date();
     const decays = updateDecay(new Date());
 
-    ends.setDate(ends.getDate() + duration[tier] || duration[duration.length - 1]);
+    ends.setDate(ends.getDate() + (duration[tier] || duration[duration.length - 1]));
 
     await _susp.updateOne(
       { _id: memberId },
@@ -127,12 +129,6 @@ const applyPunishment = async (memberId, type, duration) => {
     console.error(`Error applying ${type} punishment:`, err);
   }
 };
-
-const quit = (memberId) => applyPunishment(memberId, 'quit', [0, 1, 3, 7, 14, 30, 180]);
-const minor = (memberId) => applyPunishment(memberId, 'minor', [0, 1, 2, 3, 5, 7]);
-const moderate = (memberId) => applyPunishment(memberId, 'moderate', [0, 1, 4, 7, 14, 30, 180]);
-const major = (memberId) => applyPunishment(memberId, 'major', [7, 14, 30, 180]);
-const extreme = (memberId) => applyPunishment(memberId, 'extreme', [30, 180]);
 
 const addDays = async (memberId, num) => {
   try {
@@ -219,19 +215,14 @@ const isSuspended = async (memberId) => {
 
 const isGoodyTwoShoes = async (memberId) => {
   try {
-    let member = await _susp.findOne({ _id: memberId });
+    const member = await _susp.findOne({ _id: memberId });
 
-    if (!member || member === undefined) {
-      return true; 
-    }
+    if (!member) return true; 
 
-    let infractionCount = 0;
-
-    ['extreme', 'major', 'moderate', 'minor', 'quit'].forEach((severity) => {
-      if (member[severity] && member[severity].tier > 0) {
-        infractionCount++;
-      }
-    });
+    const infractions = ['extreme', 'major', 'moderate', 'minor', 'quit'];
+    const infractionCount = infractions.reduce((count, infraction) => {
+      return count + (member[infraction] && member[infraction].tier > 0 ? 1 : 0);
+    }, 0);
 
     return infractionCount === 0;
   } catch (err) {
@@ -240,16 +231,11 @@ const isGoodyTwoShoes = async (memberId) => {
   }
 };
 
-
 export default {
+  applyPunishment,
   connect: connectToMongoDB,
   checkSuspensions,
   isGoodyTwoShoes,
-  quit,
-  minor,
-  moderate,
-  major,
-  extreme,
   addDays,
   rmDays,
   unsuspend,
